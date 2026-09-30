@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YT Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16213A;--mist:#E8EDF3;--card:#fff;--line:#D5DDE8;--blue:#2D5BFF;--mint:#0E9F78;--red:#DC3F49;--sub:#5F6B82}
+*{box-sizing:border-box}
+body{margin:0;background:var(--mist);color:var(--ink);font-family:Prompt,system-ui,sans-serif;padding:20px 16px 48px}
+main{max-width:520px;margin:auto}
+h1{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:8px 0 18px}
+.in{display:flex;gap:8px}
+.in input{flex:1;min-width:0;padding:14px;border:2px solid var(--line);border-radius:12px;font:inherit;background:var(--card);color:var(--ink)}
+.in input:focus{outline:none;border-color:var(--blue)}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;cursor:pointer;padding:14px 16px}
+button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.paste{background:var(--card);color:var(--ink);border:2px solid var(--line)}
+.go{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 26px}
+.go button{background:var(--ink);color:#fff;font-size:17px}
+.go button.v{background:var(--blue)}
+.job{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px;display:grid;grid-template-columns:64px 1fr;gap:12px}
+.th{width:64px;height:64px;border-radius:10px;background:var(--line) center/cover}
+.t{font-weight:500;font-size:15px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.meta{font-size:12px;color:var(--sub);margin-top:2px}
+.pct{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between}
+.pct b{font-size:44px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.pct small{font-size:14px;color:var(--sub);font-variant-numeric:tabular-nums}
+.bar{grid-column:1/-1;height:10px;background:var(--mist);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--blue);border-radius:99px;transition:width .6s ease}
+.run .bar i{background:repeating-linear-gradient(-45deg,var(--blue) 0 10px,#5B80FF 10px 20px);background-size:28px 28px;animation:mv 1s linear infinite}
+@keyframes mv{to{background-position:28px 0}}
+.st{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;color:var(--sub)}
+.st span b{display:block;font-size:15px;color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.done .bar i{width:100%!important;background:var(--mint)}
+.done .pct b{color:var(--mint)}
+.err .bar i{width:100%!important;background:var(--red)}
+.err .pct b{color:var(--red);font-size:22px}
+.msg{grid-column:1/-1;font-size:13px;color:var(--sub)}
+.empty{color:var(--sub);text-align:center;padding:36px 0}
+@media (prefers-reduced-motion:reduce){.run .bar i{animation:none}.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>YT Downloader</h1>
+<div class="in">
+  <input id="url" type="url" placeholder="วางลิงก์ YouTube" autocomplete="off">
+  <button class="paste" onclick="paste()">วาง</button>
+</div>
+<div class="go">
+  <button onclick="add('mp3')">โหลดเสียง MP3</button>
+  <button class="v" onclick="add('mp4')">โหลดวิดีโอ MP4</button>
+</div>
+<div id="list"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const mb=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.round(b/1024)+' KB';
+const spd=b=>b?Math.round(b/1024).toLocaleString()+' KB/s':'–';
+const eta=s=>{if(s==null)return'–';s=Math.round(s);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+async function paste(){try{$('url').value=await navigator.clipboard.readText()}catch(e){$('url').focus()}}
+async function add(f){
+  const url=$('url').value.trim();if(!url)return $('url').focus();
+  const r=await fetch('/api/add',{method:'POST',body:JSON.stringify({url,format:f})});
+  if(!r.ok)return alert('ลิงก์ไม่ถูกต้อง ต้องขึ้นต้นด้วย http:// หรือ https://');
+  $('url').value='';load();
+}
+function card(j){
+  const p=Math.round(j.pct||0),cls=j.status==='done'?'done':j.status==='error'?'err':j.status==='downloading'?'run':'';
+  const th=j.thumb&&j.thumb!=='NA'?`style="background-image:url('${esc(j.thumb)}')"`:'';
+  let head=`<div class="th" ${th}></div><div><div class="t">${esc(j.title||j.url)}</div><div class="meta">${j.format.toUpperCase()}</div></div>`;
+  if(j.status==='pending')return`<div class="job">${head}<div class="msg">รอคิว</div></div>`;
+  if(j.status==='error')return`<div class="job err">${head}<div class="pct"><b>ไม่สำเร็จ</b></div><div class="bar"><i></i></div><div class="msg">ลองรัน pip install -U yt-dlp ใน Termux แล้วส่งลิงก์ใหม่</div></div>`;
+  if(j.status==='done')return`<div class="job done">${head}<div class="pct"><b>เสร็จแล้ว</b><small>${j.total?mb(j.total):''}</small></div><div class="bar"><i></i></div><div class="msg">บันทึกที่ Download/YT</div></div>`;
+  const conv=p>=100;
+  return`<div class="job run">${head}<div class="pct"><b>${p}%</b><small>${j.done&&j.total?mb(j.done)+' / '+mb(j.total):''}</small></div><div class="bar"><i style="width:${p}%"></i></div>`+
+  (conv?`<div class="msg">กำลังแปลงไฟล์…</div>`:`<div class="st"><span><b>${spd(j.speed)}</b>ความเร็ว</span><span><b>${eta(j.eta)}</b>เหลืออีก</span><span><b>${j.total?mb(j.total):'–'}</b>ขนาด</span></div>`)+`</div>`;
+}
+async function load(){
+  try{
+    const a=await (await fetch('/api/list')).json();
+    $('list').innerHTML=a.length?a.slice().reverse().map(card).join(''):'<div class="empty">ยังไม่มีรายการ วางลิงก์ด้านบนได้เลย</div>';
+  }catch(e){$('list').innerHTML='<div class="empty">ติดต่อเซิร์ฟเวอร์ไม่ได้ เช็คว่า python server.py ยังรันอยู่</div>'}
+}
+load();setInterval(load,1000);
+</script>
+</body>
+</html>
